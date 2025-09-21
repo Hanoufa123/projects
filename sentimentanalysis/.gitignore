@@ -1,0 +1,45 @@
+# Python virtual environment
+sentement_audio/
+sentimentvm/
+venv/
+env/
+.env
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Firebase credentials
+*-firebase-adminsdk*.json
+firebase-private-key.json
+
+# IDE specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Streamlit specific
+.streamlit/secrets.toml
+
+# Logs
+*.log
+
+# Local development files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Model cache
+.cache/

@@ -1,0 +1,6 @@
+sentement_audio
+__pycache__
+*.pyc
+.env
+.gitignore
+recorded.wav
