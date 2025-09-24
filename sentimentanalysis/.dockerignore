@@ -1,6 +1,7 @@
 sentement_audio
+savm
 __pycache__
 *.pyc
 .env
 .gitignore
-recorded.wav
+

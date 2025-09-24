@@ -1,6 +1,7 @@
 # Python virtual environment
 sentement_audio/
 sentimentvm/
+savm/
 venv/
 env/
 .env
