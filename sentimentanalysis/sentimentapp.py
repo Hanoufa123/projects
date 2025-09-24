@@ -11,7 +11,7 @@ import pytz
 from dotenv import load_dotenv
 load_dotenv()
 
-# -------- Firebase إعداد --------
+#  Firebase setup
 if not firebase_admin._apps:
     cred = credentials.Certificate(os.getenv("firebase-private-key"))
     firebase_admin.initialize_app(cred)
@@ -19,15 +19,15 @@ if not firebase_admin._apps:
 db = firestore.client()
 collection_ref = db.collection("sentiments")
 
-# -------- نموذج المشاعر --------
+# sentiment analysis model
 model_name = 'PRAli22/AraBert-Arabic-Sentiment-Analysis'
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForSequenceClassification.from_pretrained(model_name)
 sentiment_pipeline = pipeline("sentiment-analysis", model=model, tokenizer=tokenizer)
 
-# -------- واجهة Streamlit --------
+# streamlit interface
 st.title("تحليل المشاعر + لوحة تحكم Firebase")
-# إدخال النص
+# enter text
 user_text = st.text_area(" اكتب النص هنا:")
 
 riyadh_tz = pytz.timezone('Asia/Riyadh')
@@ -47,7 +47,7 @@ if st.button(" تحليل"):
 
         st.success(f" النتيجة: **{label}** ({score}%)")
 
-        # حفظ في Firestore
+        # save in Firestore
         doc = {
             "text": user_text,
             "label": label,
@@ -60,20 +60,20 @@ if st.button(" تحليل"):
         st.warning("⚠️ رجاءً اكتب نص أولاً")
 
 st.divider()
-# -------- Dashboard --------
+# Dashboard 
 st.header(" Dashboard")
 
-# اختيار التاريخ
+# Date selection
 col1, col2 = st.columns(2)
 with col1:
     start_date = st.date_input(" اختر تاريخ البداية", value=date.today().replace(day=1))
 with col2:
     end_date = st.date_input(" اختر تاريخ النهاية", value=date.today())
 
-# فلتر بالكلمة المفتاحية
+# filter by keywords
 keyword = st.text_input(" فلترة بالنص (كلمة مفتاحية اختيارية):").strip().lower()
 
-# جلب البيانات من Firebase
+# gitting data from Firebase
 docs = collection_ref.stream()
 
 data = []
@@ -81,15 +81,15 @@ for d in docs:
     doc_data = d.to_dict()
     ts = doc_data["timestamp"]
 
-    # تحويل timestamp (Firestore) إلى datetime
+    # transfer timestamp (Firestore) into datetime
     if isinstance(ts, datetime):
         ts_dt = ts
     # else:
     #     ts_dt = ts.to_pydatetime()
 
-     # تحويل التوقيت إلى توقيت الرياض
+     # trnsform timestamp to riyadh time zone
     ts_dt = ts_dt.astimezone(riyadh_tz)
-    # التصفية حسب التاريخ والكلمة
+    # filter by date and word
     if start_date <= ts_dt.date() <= end_date:
         text_lower = doc_data["text"].lower()
         if keyword == "" or keyword in text_lower:
@@ -107,19 +107,71 @@ else:
 
     # جدول
     st.subheader(" السجل")
+
+    def sentnorm(row):
+   
+        sendic = {"positive": "إيجابي", "negative": "سلبي", "neutral": "محايد"}
+        if row.lower() in sendic:
+            return sendic[row]
+        return row
+    df["label"] = df["label"].str.lower()
+    df['label'] = df["label"].apply(lambda x: sentnorm(x))
     st.dataframe(df[["timestamp", "text", "label", "score"]])
 
-    # توزيع المشاعر
-    st.subheader(" توزيع المشاعر")
-    chart = alt.Chart(df).mark_bar().encode(
-        x='label',
-        y='count()',
-        color='label'
-    )
-    st.altair_chart(chart, use_container_width=True)
+    # general statics
+    st.subheader(" إحصائيات عامة")
+    row1,row2,row3= st.columns(3)
+    with row1:
+        st.metric("إجمالي الإدخالات", df.shape[0])
+    with row2:
+        avg_score = df['score'].mean()
+        st.metric("متوسط الدقة", f"{avg_score:.2f}%")
+    with row3:
+        unique_texts = df['text'].nunique()
+        st.metric("نصوص فريدة", unique_texts)
+    st.divider()
+    row4,row5,row6= st.columns(3)
+    with row4:
+        st.metric("إيجابي", df[df["label"] == "إيجابي"].shape[0])
+    with row5:
+        st.metric("سلبي", df[df["label"] == "سلبي"].shape[0])
+    with row6:
+        st.metric("محايد", df[df["label"] == "محايد"].shape[0])
 
-    #  الاتجاه عبر الزمن
-    st.subheader("📈 المشاعر عبر الزمن (Timeline)")
+    # sentiment distrebute
+    st.subheader(" توزيع المشاعر")
+
+    row7,row8= st.columns(2)
+    with row7:
+        chart = alt.Chart(df).mark_bar().encode(
+            x='label',
+            y='count()',
+            color='label'
+        )
+        st.altair_chart(chart, use_container_width=True)
+
+    with row8:
+
+ 
+        # Calculate percentage
+        pie_df = df['label'].value_counts(normalize=True).reset_index()
+        pie_df.columns = ['label', 'percentage']
+        pie_df['percentage'] *= 100  # convert to percent
+
+        pie_chart = alt.Chart(pie_df).mark_arc().encode(
+            theta=alt.Theta(field="percentage", type="quantitative",aggregate="count"),
+            color=alt.Color(field="label", type="nominal"),
+            tooltip=["label",
+            alt.Tooltip('percentage:Q', title='النسبة المئوية', format=".1f")]
+        ).properties(title="نسبة توزيع المشاعر")
+
+        st.altair_chart(pie_chart, use_container_width=True)
+
+
+
+
+    #  direction throw time
+    st.subheader("المشاعر عبر الزمن (Timeline)")
     df['date'] = df['timestamp'].dt.date
     timeline = df.groupby(['date', 'label']).size().reset_index(name='count')
 
@@ -131,8 +183,10 @@ else:
 
     st.altair_chart(line_chart, use_container_width=True)
 
-    # -------- تصدير --------
-    st.subheader("⬇️ تصدير النتائج")
+
+
+    # export
+    st.subheader("⬇تصدير النتائج")
     csv = df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
     # towrite = io.BytesIO()
     # with pd.ExcelWriter(towrite, engine="xlsxwriter") as writer:
